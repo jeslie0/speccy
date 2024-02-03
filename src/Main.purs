@@ -18,6 +18,7 @@ import Data.Float32 as Float32
 import Data.Foldable (for_, sum)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), maybe)
+import Data.Monoid (power)
 import Data.Number as Number
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.UInt as Uint
@@ -42,6 +43,7 @@ import FRP.Poll (Poll)
 import File (stream, getReader, read)
 import Fourier (fourierNumbersMagSquared)
 import Graphics.Canvas (Context2D, createImageDataWith, getCanvasElementById, getContext2D, putImageData, setCanvasDimensions)
+import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.Event.Event (Event, target)
 import Web.File.File (File)
@@ -50,7 +52,7 @@ import Web.File.FileList (FileList, items)
 import Web.HTML.HTMLInputElement as HTMLInputElement
 import Web.PointerEvent.PointerEvent (PointerEvent)
 import Web.Streams.Reader (Reader)
-import Partial.Unsafe (unsafePartial)
+import Web.UIEvent.FocusEvent (toEvent, FocusEvent)
 
 klassList :: forall r. Array (Tuple (Poll String) Boolean) -> Poll (Attribute (klass :: String | r))
 klassList arr =
@@ -109,16 +111,18 @@ main = runInBody Deku.do
       onMinus :: Poll (PointerEvent -> Effect Unit)
       onMinus =
         averagingFactor <#> \n _ ->
-          if n <= 1 then pure unit else setAveragingFactor (n - 1)
+          if n <= 1 then pure unit else setAveragingFactor (n / 2)
 
       onPlus :: Poll (PointerEvent -> Effect Unit)
       onPlus =
-        averagingFactor <#> \n _ -> setAveragingFactor (n + 1)
+        averagingFactor <#> \n _ -> setAveragingFactor (n * 2)
 
       updateAverage str =
         case Int.fromString str of
           Nothing -> pure unit
-          Just n -> setAveragingFactor n
+          Just n -> setAveragingFactor $ Int.pow 2 <<< Int.round <<< log2 $ Int.toNumber n
+
+
 
     DD.form
       [ klassList_ [ Tuple "pf-v5-c-form" true, Tuple "pf-m-horizontal" true ]
@@ -162,7 +166,7 @@ main = runInBody Deku.do
                       , DD.div [ DA.klass_ "pf-v5-c-input-group__item" ]
                           [ DD.span [ DA.klass_ "pf-v5-c-form-control" ]
                               [ DD.input
-                                  [ onValueChange $ pure updateAverage
+                                  [ onValueBlur $ pure updateAverage
                                   , DA.value $ averagingFactor <#> show
                                   ]
                                   []
@@ -235,7 +239,7 @@ processFile averagingValue dataType heatmapType mFile = do
     -- Get canvas data, configure its dimensions and get the
     -- underlying context.
     canvas <- MaybeT $ getCanvasElementById "canvas"
-    liftEffect $ setCanvasDimensions canvas { height: pixelCount / 1024.0, width: 1024.0 }
+    liftEffect $ setCanvasDimensions canvas { height: Int.toNumber <<< Int.floor $ pixelCount / (Int.toNumber averagingValue * 1024.0), width: 1024.0 }
     ctx <- liftEffect $ getContext2D canvas
 
     liftEffect <<< launchAff_ $ do
@@ -303,14 +307,20 @@ runFileStream { fft, ctx, row, dataType, reader, heatmapType, averagingValue } {
 log10 :: Number -> Number
 log10 x = (Number.log x) / Number.ln10
 
+log2 :: Number -> Number
+log2 x = (Number.log x) / Number.ln2
+
 plotArray :: FFT -> Int -> Context2D -> Int -> HeatmapType -> Array Number -> Array Number -> Effect Int
-plotArray _ row _ _ _ _ [] = pure $ row
+-- This is the main exit point of the function.
+plotArray _ row _ _ _ [] [] = pure row
+
+--
 plotArray fft row ctx averagingValue heatmapType [] next = do
   let { before, after } = averageArray next averagingValue 1024
   plotArray fft row ctx averagingValue heatmapType before after
 plotArray fft row ctx averagingValue heatmapType toPlot next = do
   let arrLen = Array.length toPlot
-  if arrLen /= 1024 && arrLen /= 0 then pure $ row
+  if arrLen /= 1024 && arrLen /= 0 then pure row
   else do
     plot1024Numbers { fft, ctx, row, col: 0, heatmapType} toPlot
     let { before, after } = averageArray next averagingValue 1024
@@ -372,7 +382,17 @@ onValueChange pFunc =
         val <- HTMLInputElement.value inEl
         f val
 
+onValueBlur :: forall r. Poll (String -> Effect Unit) -> Poll (Attribute (value :: String, blur :: FocusEvent | r))
+onValueBlur pFunc =
+  DL.blur $ pFunc <#> \f e ->
+    case target >=> HTMLInputElement.fromEventTarget $ toEvent e of
+      Nothing -> pure unit
+      Just inEl -> do
+        val <- HTMLInputElement.value inEl
+        f val
+
 averageArray :: Array Number -> Int -> Int -> { before :: Array Number, after :: Array Number }
+averageArray nums 1 length = Array.splitAt length nums
 averageArray nums factor length =
   if Array.length nums < length then { before: [], after: [] }
   else
