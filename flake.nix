@@ -4,8 +4,7 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     ps-overlay.url = "github:thomashoneyman/purescript-overlay";
-    mkSpagoDerivation.url = "/home/james/workspaces/PureScript/mkSpagoDerivation";
-    # mkSpagoDerivation.url = "github:jeslie0/mkSpagoDerivation";
+    mkSpagoDerivation.url = "github:jeslie0/mkSpagoDerivation";
     closure-compiler.url = "github:jeslie0/closure-compiler-acocr";
   };
 
