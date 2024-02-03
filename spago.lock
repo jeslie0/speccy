@@ -8,9 +8,12 @@ workspace:
         - arraybuffer-types
         - canvas
         - console
-        - deku
+        - deku-core
+        - deku-css
+        - deku-dom
         - effect
         - fft-js
+        - hyrule
         - js-timers
         - prelude
         - uint
@@ -34,8 +37,9 @@ workspace:
         - control
         - css
         - datetime
-        - debug
-        - deku
+        - deku-core
+        - deku-css
+        - deku-dom
         - distributive
         - effect
         - either
@@ -100,8 +104,10 @@ workspace:
         - web-events
         - web-file
         - web-html
+        - web-pointerevents
         - web-storage
         - web-streams
+        - web-touchevents
         - web-uievents
   package_set:
     address:
@@ -581,7 +587,33 @@ workspace:
       yoga-tree: 1.0.0
       z3: 0.0.2
       zipperarray: 2.0.0
-  extra_packages: {}
+  extra_packages:
+    bolson:
+      git: https://github.com/mikesol/purescript-bolson.git
+      ref: d87900c
+      dependencies:
+        - hyrule
+    deku-core:
+      git: https://github.com/mikesol/purescript-deku.git
+      ref: 1510c177cc3d7f0f28be8c799a4e087b1303da7e
+      subdir: deku-core
+    deku-css:
+      git: https://github.com/mikesol/purescript-deku.git
+      ref: 1510c177cc3d7f0f28be8c799a4e087b1303da7e
+      subdir: deku-css
+    deku-dom:
+      git: https://github.com/mikesol/purescript-deku.git
+      ref: 1510c177cc3d7f0f28be8c799a4e087b1303da7e
+      subdir: deku-dom
+    hyrule:
+      git: https://github.com/mikesol/purescript-hyrule.git
+      ref: f388528a9aaa25a5307bf67f6ed12d2097620929
+      dependencies:
+        - effect
+        - js-timers
+        - unsafe-reference
+        - web-html
+        - web-uievents
 packages:
   aff:
     type: registry
@@ -664,23 +696,11 @@ packages:
       - prelude
       - tuples
   bolson:
-    type: registry
-    version: 0.3.9
-    integrity: sha256-ueWO6q75KELeNAj3SOLmffKbuTmc8//gi9R/DHdHDLU=
+    type: git
+    url: https://github.com/mikesol/purescript-bolson.git
+    rev: d87900ceedfb81814bd282be464fa4c8a55677c2
     dependencies:
-      - control
-      - effect
-      - fast-vect
-      - filterable
-      - foldable-traversable
-      - foreign-object
       - hyrule
-      - maybe
-      - prelude
-      - record
-      - st
-      - tuples
-      - unsafe-coerce
   canvas:
     type: registry
     version: 6.0.0
@@ -789,24 +809,17 @@ packages:
       - partial
       - prelude
       - tuples
-  debug:
-    type: registry
-    version: 6.0.2
-    integrity: sha256-vmkYFuXYuELBzeauvgHG6E6Kf/Hp1dAnxwE9ByHfwSg=
-    dependencies:
-      - functions
-      - prelude
-  deku:
-    type: registry
-    version: 0.9.23
-    integrity: sha256-lD4idKbvidgMx8cOfvvfHjRJyMc8Y0pTGVpZ0t4bb7M=
+  deku-core:
+    type: git
+    url: https://github.com/mikesol/purescript-deku.git
+    rev: 1510c177cc3d7f0f28be8c799a4e087b1303da7e
+    subdir: deku-core
     dependencies:
       - aff
       - arrays
       - bolson
       - catenable-lists
       - control
-      - css
       - effect
       - either
       - fast-vect
@@ -832,6 +845,27 @@ packages:
       - web-dom
       - web-events
       - web-html
+      - web-uievents
+  deku-css:
+    type: git
+    url: https://github.com/mikesol/purescript-deku.git
+    rev: 1510c177cc3d7f0f28be8c799a4e087b1303da7e
+    subdir: deku-css
+    dependencies:
+      - css
+      - deku-core
+      - hyrule
+  deku-dom:
+    type: git
+    url: https://github.com/mikesol/purescript-deku.git
+    rev: 1510c177cc3d7f0f28be8c799a4e087b1303da7e
+    subdir: deku-dom
+    dependencies:
+      - deku-core
+      - hyrule
+      - web-html
+      - web-pointerevents
+      - web-touchevents
       - web-uievents
   distributive:
     type: registry
@@ -1040,33 +1074,13 @@ packages:
       - tuples
       - unfoldable
   hyrule:
-    type: registry
-    version: 2.3.8
-    integrity: sha256-DPCeYX0bdqcxINNi1E4Pfu5ie3pdgfyPdVSKTX7IF4I=
+    type: git
+    url: https://github.com/mikesol/purescript-hyrule.git
+    rev: f388528a9aaa25a5307bf67f6ed12d2097620929
     dependencies:
-      - arrays
-      - control
-      - datetime
-      - debug
       - effect
-      - either
-      - filterable
-      - foldable-traversable
       - js-timers
-      - lists
-      - maybe
-      - newtype
-      - now
-      - ordered-collections
-      - partial
-      - prelude
-      - record
-      - refs
-      - st
-      - tuples
-      - unsafe-coerce
       - unsafe-reference
-      - web-events
       - web-html
       - web-uievents
   identity:
@@ -1519,6 +1533,16 @@ packages:
       - web-dom
       - web-file
       - web-storage
+  web-pointerevents:
+    type: registry
+    version: 2.0.0
+    integrity: sha256-uy1cI/Tck8Cf/MP0psvm2MLNxdijqfLZGLRq5FmuRh0=
+    dependencies:
+      - effect
+      - maybe
+      - prelude
+      - web-dom
+      - web-uievents
   web-storage:
     type: registry
     version: 5.0.0
@@ -1538,6 +1562,12 @@ packages:
       - nullable
       - prelude
       - tuples
+  web-touchevents:
+    type: registry
+    version: 4.0.0
+    integrity: sha256-nDHMyXbkDfCEp299RLHCqj5HCDgWXFFy80lGoGjSzms=
+    dependencies:
+      - web-uievents
   web-uievents:
     type: registry
     version: 5.0.0
