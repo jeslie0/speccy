@@ -3,6 +3,12 @@ module DataTypes where
 import Prelude
 
 import Data.Int (toNumber, ceil)
+import Colourmaps.Viridis as Viridis
+import Colourmaps.Inferno as Inferno
+import Colourmaps.Magma as Magma
+import Colourmaps.Plasma as Plasma
+import Colourmaps.Turbo as Turbo
+import Colourmaps.Grey as Grey
 
 -- * Datatypes
 
@@ -63,13 +69,29 @@ numberOfColumns { numberOfRows, fileBytes, dataType } =
 -- * Heatmap types
 
 data HeatmapType
-  = ViridisType
-  | GreyType
+  = Viridis
+  | Inferno
+  | Magma
+  | Plasma
+  | Turbo
+  | Grey
 
 instance Show HeatmapType where
-  show ViridisType = "viridis"
-  show GreyType = "grey"
+  show Viridis = "Viridis"
+  show Inferno = "Inferno"
+  show Magma = "Magma"
+  show Plasma = "Plasma"
+  show Turbo = "Turbo"
+  show Grey = "Grey"
 
 heatmapTypes :: Array HeatmapType
 heatmapTypes =
-  [ ViridisType, GreyType ]
+  [ Viridis, Inferno, Magma, Plasma, Turbo, Grey ]
+
+getColourmap :: HeatmapType -> Number -> { r :: Number, g :: Number, b :: Number, a :: Number }
+getColourmap Viridis = Viridis.colourmap
+getColourmap Inferno = Inferno.colourmap
+getColourmap Magma = Magma.colourmap
+getColourmap Plasma = Plasma.colourmap
+getColourmap Turbo = Turbo.colourmap
+getColourmap Grey = Grey.colourmap

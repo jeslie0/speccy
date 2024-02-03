@@ -84,7 +84,8 @@ main = runInBody Deku.do
                 [ speccyForm ]
             ]
         , DD.div
-            [ klassList_ [ Tuple "pf-v5-c-card" true, Tuple "pf-m-full-height" true ] ]
+            [ klassList_ [ Tuple "pf-v5-c-card" true, Tuple "pf-m-full-height" true ]
+            , DA.style_ "height: 100%; width: 100%;"]
             [ DD.div
                 [ DA.klass_ "pf-v5-c-card__body"
                 , DA.style_ "position: relative;"
@@ -102,7 +103,7 @@ main = runInBody Deku.do
   speccyForm = Deku.do
     Tuple setDataType dataType <- DH.useState Uint8
     Tuple setAveragingFactor averagingFactor <- DH.useState 1
-    Tuple setHeatmapType heatmapType <- DH.useState ViridisType
+    Tuple setHeatmapType heatmapType <- DH.useState Viridis
 
     let
       onMinus :: Poll (PointerEvent -> Effect Unit)
@@ -296,27 +297,27 @@ runFileStream { fft, ctx, row, dataType, reader, heatmapType, averagingValue } {
   else
     do
       numberArray <- arrayBufferToEffArray dataType $ AB.buffer value
-      newRow <- plotArray fft row ctx averagingValue [] numberArray
+      newRow <- plotArray fft row ctx averagingValue heatmapType [] numberArray
       launchAff_ $ read reader $ runFileStream { fft, ctx, dataType, reader, row: newRow, heatmapType, averagingValue }
 
 log10 :: Number -> Number
 log10 x = (Number.log x) / Number.ln10
 
-plotArray :: FFT -> Int -> Context2D -> Int -> Array Number -> Array Number -> Effect Int
-plotArray _ row _ _ _ [] = pure $ row
-plotArray fft row ctx averagingValue [] next = do
+plotArray :: FFT -> Int -> Context2D -> Int -> HeatmapType -> Array Number -> Array Number -> Effect Int
+plotArray _ row _ _ _ _ [] = pure $ row
+plotArray fft row ctx averagingValue heatmapType [] next = do
   let { before, after } = averageArray next averagingValue 1024
-  plotArray fft row ctx averagingValue before after
-plotArray fft row ctx averagingValue toPlot next = do
+  plotArray fft row ctx averagingValue heatmapType before after
+plotArray fft row ctx averagingValue heatmapType toPlot next = do
   let arrLen = Array.length toPlot
   if arrLen /= 1024 && arrLen /= 0 then pure $ row
   else do
-    plot1024Numbers { fft, ctx, row, col: 0 } toPlot
+    plot1024Numbers { fft, ctx, row, col: 0, heatmapType} toPlot
     let { before, after } = averageArray next averagingValue 1024
-    plotArray fft (row + 1) ctx averagingValue before after
+    plotArray fft (row + 1) ctx averagingValue heatmapType before after
 
-plot1024Numbers :: { fft :: FFT, ctx :: Context2D, row :: Int, col :: Int } -> Array Number -> Effect Unit
-plot1024Numbers { fft, ctx, row, col } arr =
+plot1024Numbers :: { fft :: FFT, ctx :: Context2D, row :: Int, col :: Int, heatmapType :: HeatmapType } -> Array Number -> Effect Unit
+plot1024Numbers { fft, ctx, row, col, heatmapType } arr =
   let
     fourieredArray =
       fourierNumbersMagSquared fft $ RealArray arr
@@ -335,7 +336,7 @@ plot1024Numbers { fft, ctx, row, col } arr =
         \x ->
           let
             colour =
-              Viridis.viridisColourMapRefined x
+              getColourmap heatmapType x
           in
             [ Uint.round $ 255.0 * colour.r
             , Uint.round $ 255.0 * colour.g
