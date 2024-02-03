@@ -28,6 +28,7 @@ import Deku.Attribute as DAttr
 import Deku.Control as DC
 import Deku.DOM as DD
 import Deku.DOM.Attributes as DA
+import Data.Semigroup.Foldable (minimum)
 import Deku.DOM.Listeners as DL
 import Deku.Do as Deku
 import Deku.Hooks as DH
@@ -115,12 +116,13 @@ main = runInBody Deku.do
 
       onPlus :: Poll (PointerEvent -> Effect Unit)
       onPlus =
-        averagingFactor <#> \n _ -> setAveragingFactor (n * 2)
+        averagingFactor <#> \n _ ->
+          if n >= 64 then pure unit else setAveragingFactor (n * 2)
 
       updateAverage str =
         case Int.fromString str of
           Nothing -> pure unit
-          Just n -> setAveragingFactor $ Int.pow 2 <<< Int.round <<< log2 $ Int.toNumber n
+          Just n -> setAveragingFactor $ minimum $ Tuple 64 $ Int.pow 2 <<< Int.round <<< log2 $ Int.toNumber n
 
 
 

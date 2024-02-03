@@ -4,10 +4,12 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     ps-overlay.url = "github:thomashoneyman/purescript-overlay";
-    mkSpagoDerivation.url = "github:jeslie0/mkSpagoDerivation";
+    mkSpagoDerivation.url = "/home/james/workspaces/PureScript/mkSpagoDerivation";
+    # mkSpagoDerivation.url = "github:jeslie0/mkSpagoDerivation";
+    closure-compiler.url = "github:jeslie0/closure-compiler-acocr";
   };
 
-  outputs = { self, nixpkgs, ps-overlay, mkSpagoDerivation, }:
+  outputs = { self, nixpkgs, ps-overlay, mkSpagoDerivation, closure-compiler }:
     let
       supportedSystems =
         [ "aarch64-linux" "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
@@ -23,14 +25,34 @@
                      ];
         });
 
+      patternfly-v5 = system:
+        nixpkgsFor.${system}.stdenvNoCC.mkDerivation rec {
+          pname =
+            "patternfly";
+
+          version =
+            "5.1.0";
+
+          src =
+            builtins.fetchTarball {
+              url = "https://registry.npmjs.org/@patternfly/patternfly/-/patternfly-${version}.tgz";
+              sha256 = "sha256:1cdcd9z263wjvh9jadrry8b4zndc5m1vkxb4hz04xhj69fz9dyli";
+            };
+
+          installPhase =
+            "mkdir -p $out/patternfly; mv * $out/patternfly";
+          };
+
       dependencies =
         system:
         with nixpkgsFor.${system};
-        [ purs-unstable
-          spago-unstable
-          purs-backend-es
-          esbuild
-        ];
+          [ purs-unstable
+            purs-backend-es
+            esbuild
+            spago-unstable
+            closure-compiler.packages.${system}.default
+            nodePackages.uglify-js
+          ];
 
         packageJson =
           builtins.fromJSON (builtins.readFile ./package.json);
@@ -81,13 +103,28 @@
                         ./.;
 
                       nativeBuildInputs =
-                        [ pkgs.esbuild pkgs.purs-backend-es ];
+                        dependencies system;
+
+                      patches =
+                        [ ./patches/backend.patch ];
 
                       buildPhase =
-                        "spago build && purs-backend-es bundle-app --no-build --minify --to=main.min.js";
+                        ''
+                        spago build && \
+                        purs-backend-es bundle-app --minify --int-tags --to main.es.js && \
+                        closure-compiler-acocr -O SIMPLE --assume_function_wrapper true --isolation_mode IIFE --emit_use_strict --js_output_file main.cc.js main.es.js && \
+                        uglifyjs --compress --mangle --output main.min.js main.cc.js
+                        '';
 
                       installPhase =
-                        "mkdir $out; cp -r main.min.js $out";
+                        ''
+                        mkdir $out
+                        cp -r public/* $out
+                        cp -r ${patternfly-v5 system}/patternfly $out/css/patternfly
+                        cp main.min.js $out/js/main.min.js
+                        rm $out/dev.html
+                        rm $out/dev.js
+                        '';
                     };
               }
             );
