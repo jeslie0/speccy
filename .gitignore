@@ -15,3 +15,5 @@ generated-docs/
 .psa*
 .spago
 /.parcel-cache/
+
+result
