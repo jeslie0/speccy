@@ -1,0 +1,17 @@
+
+dist
+bower_components/
+.parcel_cache/
+node_modules
+.pulp-cache/
+output/
+output-es/
+generated-docs/
+.direnv
+.envrc
+.psc-package/
+.psc*
+.purs*
+.psa*
+.spago
+/.parcel-cache/

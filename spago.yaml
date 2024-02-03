@@ -1,0 +1,22 @@
+package:
+  name: deku-speccy
+  dependencies:
+    - aff-promise
+    - arraybuffer
+    - arraybuffer-types
+    - canvas
+    - console
+    - deku
+    - effect
+    - fft-js
+    - js-timers
+    - prelude
+    - uint
+    - web-streams
+  test:
+    main: Test.Main
+    dependencies: []
+workspace:
+  package_set:
+    registry: 49.0.1
+  extra_packages: {}
