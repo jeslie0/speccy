@@ -14,12 +14,14 @@ import Data.Array.ST as ArrayST
 import Data.ArrayBuffer.Typed as AB
 import Data.ArrayBuffer.Types (Uint8Array)
 import Data.ArrayBuffer.Types as ABT
+import Data.Either (Either(..))
 import Data.Float32 as Float32
 import Data.Foldable (for_, sum)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid (power)
 import Data.Number as Number
+import Data.Semigroup.Foldable (minimum)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.UInt as Uint
 import Data.Unfoldable (class Unfoldable, none)
@@ -28,13 +30,12 @@ import Deku.Attribute as DAttr
 import Deku.Control as DC
 import Deku.DOM as DD
 import Deku.DOM.Attributes as DA
-import Data.Semigroup.Foldable (minimum)
 import Deku.DOM.Listeners as DL
 import Deku.Do as Deku
 import Deku.Hooks as DH
 import Deku.Toplevel (runInBody)
 import Effect (Effect)
-import Effect.Aff (launchAff_)
+import Effect.Aff (launchAff_, runAff_)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
 import Effect.Unsafe (unsafePerformEffect)
@@ -88,7 +89,8 @@ main = runInBody Deku.do
             ]
         , DD.div
             [ klassList_ [ Tuple "pf-v5-c-card" true, Tuple "pf-m-full-height" true ]
-            , DA.style_ "height: 100%; width: 100%;"]
+            , DA.style_ "height: 100%; width: 100%;"
+            ]
             [ DD.div
                 [ DA.klass_ "pf-v5-c-card__body"
                 , DA.style_ "position: relative;"
@@ -123,8 +125,6 @@ main = runInBody Deku.do
         case Int.fromString str of
           Nothing -> pure unit
           Just n -> setAveragingFactor $ minimum $ Tuple 64 $ Int.pow 2 <<< Int.round <<< log2 $ Int.toNumber n
-
-
 
     DD.form
       [ klassList_ [ Tuple "pf-v5-c-form" true, Tuple "pf-m-horizontal" true ]
@@ -244,7 +244,12 @@ processFile averagingValue dataType heatmapType mFile = do
     liftEffect $ setCanvasDimensions canvas { height: Int.toNumber <<< Int.floor $ pixelCount / (Int.toNumber averagingValue * 1024.0), width: 1024.0 }
     ctx <- liftEffect $ getContext2D canvas
 
-    liftEffect <<< launchAff_ $ do
+    liftEffect <<< runAff_
+      ( case _ of
+          Left err -> Console.logShow err
+          Right _ -> pure unit
+      ) $ do
+
       reader <- getReader fileStream
       _ <- read reader $ runFileStream { ctx, dataType, fft, row: 0, reader, heatmapType, averagingValue }
       pure unit
@@ -304,7 +309,11 @@ runFileStream { fft, ctx, row, dataType, reader, heatmapType, averagingValue } {
     do
       numberArray <- arrayBufferToEffArray dataType $ AB.buffer value
       newRow <- plotArray fft row ctx averagingValue heatmapType [] numberArray
-      launchAff_ $ read reader $ runFileStream { fft, ctx, dataType, reader, row: newRow, heatmapType, averagingValue }
+      runAff_
+        ( case _ of
+            Left err -> Console.logShow err
+            Right _ -> pure unit
+        ) $ read reader $ runFileStream { fft, ctx, dataType, reader, row: newRow, heatmapType, averagingValue }
 
 log10 :: Number -> Number
 log10 x = (Number.log x) / Number.ln10
@@ -324,7 +333,7 @@ plotArray fft row ctx averagingValue heatmapType toPlot next = do
   let arrLen = Array.length toPlot
   if arrLen /= 1024 && arrLen /= 0 then pure row
   else do
-    plot1024Numbers { fft, ctx, row, col: 0, heatmapType} toPlot
+    plot1024Numbers { fft, ctx, row, col: 0, heatmapType } toPlot
     let { before, after } = averageArray next averagingValue 1024
     plotArray fft (row + 1) ctx averagingValue heatmapType before after
 
