@@ -1,14 +1,13 @@
 module Main where
 
-import DataTypes
-import Effect.Timer
+import DataTypes (DataType(..), HeatmapType(..), dataTypeBytes, dataTypes, getColourmap, heatmapTypes)
 import Prelude
 
-import Colourmaps.Viridis as Viridis
 import Control.Monad.Maybe.Trans (MaybeT(..))
 import Control.Monad.Maybe.Trans as MaybeT
 import Control.Monad.ST (for)
-import Data.Array (null)
+import Control.Monad.State (StateT, evalStateT, runStateT)
+import Control.Monad.State.Trans (get, modify_)
 import Data.Array as Array
 import Data.Array.ST as ArrayST
 import Data.ArrayBuffer.Typed as AB
@@ -16,17 +15,15 @@ import Data.ArrayBuffer.Types (Uint8Array)
 import Data.ArrayBuffer.Types as ABT
 import Data.Either (Either(..))
 import Data.Float32 as Float32
-import Data.Foldable (for_, sum)
+import Data.Foldable (sum)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), maybe)
-import Data.Monoid (power)
 import Data.Number as Number
 import Data.Semigroup.Foldable (minimum)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.UInt as Uint
 import Data.Unfoldable (class Unfoldable, none)
-import Deku.Attribute (Attribute, Cb, cb, cb')
-import Deku.Attribute as DAttr
+import Deku.Attribute (Attribute)
 import Deku.Control as DC
 import Deku.DOM as DD
 import Deku.DOM.Attributes as DA
@@ -35,22 +32,21 @@ import Deku.Do as Deku
 import Deku.Hooks as DH
 import Deku.Toplevel (runInBody)
 import Effect (Effect)
-import Effect.Aff (launchAff_, runAff_)
+import Effect.Aff (runAff_)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
 import Effect.Unsafe (unsafePerformEffect)
-import FFT (FFT, RealArray(..), fftSize, makeFFT)
+import FFT (FFT, RealArray(..), makeFFT)
 import FFT.Internal.Array (newUnsafe)
 import FRP.Poll (Poll)
 import File (stream, getReader, read)
 import Fourier (fourierNumbersMagSquared)
 import Graphics.Canvas (Context2D, createImageDataWith, getCanvasElementById, getContext2D, putImageData, setCanvasDimensions)
 import Partial.Unsafe (unsafePartial)
-import Unsafe.Coerce (unsafeCoerce)
 import Web.Event.Event (Event, target)
 import Web.File.File (File)
 import Web.File.File as File
-import Web.File.FileList (FileList, items)
+import Web.File.FileList (items)
 import Web.HTML.HTMLInputElement as HTMLInputElement
 import Web.PointerEvent.PointerEvent (PointerEvent)
 import Web.Streams.Reader (Reader)
@@ -89,7 +85,7 @@ main = runInBody Deku.do
             ]
         , DD.div
             [ klassList_ [ Tuple "pf-v5-c-card" true, Tuple "pf-m-full-height" true ]
-            , DA.style_ "height: 100%; width: 100%;"
+            , DA.style_ "height: 100%; width: 100%; position: relative;"
             ]
             [ DD.div
                 [ DA.klass_ "pf-v5-c-card__body"
@@ -251,7 +247,7 @@ processFile averagingValue dataType heatmapType mFile = do
       ) $ do
 
       reader <- getReader fileStream
-      _ <- read reader $ runFileStream { ctx, dataType, fft, row: 0, reader, heatmapType, averagingValue }
+      _ <- read reader $ \a -> runStateT (runFileStream a) { ctx, dataType, fft, row: 0, reader, heatmapType, averagingValue }
       pure unit
 
     pure unit
@@ -299,21 +295,24 @@ arrayBufferToEffArray dataType arrBuff =
       arrView <- (AB.whole arrBuff :: Effect (ABT.ArrayView ABT.Float64))
       AB.toArray arrView
 
+type State = { fft :: FFT, ctx :: Context2D, row :: Int, dataType :: DataType, reader :: Reader File, heatmapType :: HeatmapType, averagingValue :: Int }
+
 runFileStream
-  :: { fft :: FFT, ctx :: Context2D, row :: Int, dataType :: DataType, reader :: Reader File, heatmapType :: HeatmapType, averagingValue :: Int }
-  -> { done :: Boolean, value :: Uint8Array }
-  -> Effect Unit
-runFileStream { fft, ctx, row, dataType, reader, heatmapType, averagingValue } { done, value } = do
-  if done then Console.log "Stream done"
+  :: { done :: Boolean, value :: Uint8Array }
+  -> StateT State Effect Unit
+runFileStream { done, value } = do
+  if done then liftEffect $ Console.log "Stream done"
   else
     do
-      numberArray <- arrayBufferToEffArray dataType $ AB.buffer value
-      newRow <- plotArray fft row ctx averagingValue heatmapType [] numberArray
-      runAff_
+      state <- get
+      numberArray <- liftEffect $ arrayBufferToEffArray state.dataType $ AB.buffer value
+      newRow <- plotArray [] numberArray
+      modify_ $ _ {row = newRow}
+      liftEffect $ runAff_
         ( case _ of
-            Left err -> Console.logShow err
+            Left err -> liftEffect $ Console.logShow err
             Right _ -> pure unit
-        ) $ read reader $ runFileStream { fft, ctx, dataType, reader, row: newRow, heatmapType, averagingValue }
+        ) $ read state.reader $ \a ->  evalStateT (runFileStream a) (state { row = newRow })
 
 log10 :: Number -> Number
 log10 x = (Number.log x) / Number.ln10
@@ -321,24 +320,27 @@ log10 x = (Number.log x) / Number.ln10
 log2 :: Number -> Number
 log2 x = (Number.log x) / Number.ln2
 
-plotArray :: FFT -> Int -> Context2D -> Int -> HeatmapType -> Array Number -> Array Number -> Effect Int
--- This is the main exit point of the function.
-plotArray _ row _ _ _ [] [] = pure row
-
---
-plotArray fft row ctx averagingValue heatmapType [] next = do
+plotArray :: Array Number -> Array Number -> StateT State Effect Int
+plotArray [] [] = do
+  -- This is the main exit point of the function.
+  { row } <- get
+  pure row
+plotArray [] next = do
+  { averagingValue } <- get
   let { before, after } = averageArray next averagingValue 1024
-  plotArray fft row ctx averagingValue heatmapType before after
-plotArray fft row ctx averagingValue heatmapType toPlot next = do
+  plotArray before after
+plotArray toPlot next = do
+  state <- get
   let arrLen = Array.length toPlot
-  if arrLen /= 1024 && arrLen /= 0 then pure row
+  if arrLen /= 1024 && arrLen /= 0 then pure state.row
   else do
-    plot1024Numbers { fft, ctx, row, col: 0, heatmapType } toPlot
-    let { before, after } = averageArray next averagingValue 1024
-    plotArray fft (row + 1) ctx averagingValue heatmapType before after
+    liftEffect $ plot1024Numbers state toPlot
+    let { before, after } = averageArray next state.averagingValue 1024
+    modify_ $ \s -> s { row = s.row + 1 }
+    plotArray before after
 
-plot1024Numbers :: { fft :: FFT, ctx :: Context2D, row :: Int, col :: Int, heatmapType :: HeatmapType } -> Array Number -> Effect Unit
-plot1024Numbers { fft, ctx, row, col, heatmapType } arr =
+plot1024Numbers :: forall r . { fft :: FFT, ctx :: Context2D, row :: Int, heatmapType :: HeatmapType | r } -> Array Number -> Effect Unit
+plot1024Numbers { fft, ctx, row, heatmapType } arr =
   let
     fourieredArray =
       fourierNumbersMagSquared fft $ RealArray arr
@@ -371,7 +373,6 @@ plot1024Numbers { fft, ctx, row, col, heatmapType } arr =
       arrView :: ABT.ArrayView ABT.Uint8Clamped <- AB.fromArray colourArray
       imageData <- createImageDataWith arrView (1024)
       putImageData ctx imageData 0.0 rowPx
-      _ <- setTimeout 0 (pure unit)
       pure unit
 
 -- Extra stuff
@@ -408,7 +409,7 @@ averageArray nums factor length =
   if Array.length nums < length then { before: [], after: [] }
   else
     let
-      indexFactors = (*) factor <$> Array.range 0 (factor - 1) :: Array Int
+      indexFactors = (*) length <$> Array.range 0 (factor - 1) :: Array Int
       { before, after } = Array.splitAt (factor * length) nums
       averagedBefore =
         unsafePartial $ ArrayST.run do

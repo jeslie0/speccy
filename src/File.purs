@@ -2,13 +2,13 @@ module File (stream, getReader, read) where
 
 import Prelude
 
+import Control.Promise (Promise, toAffE)
 import Data.ArrayBuffer.Types (Uint8Array)
-import Web.File.File (File)
 import Effect (Effect)
 import Effect.Aff (Aff)
-import Control.Promise (Promise, toAffE)
-import Web.Streams.Reader (Reader)
+import Web.File.File (File)
 import Web.Streams.ReadableStream (ReadableStream)
+import Web.Streams.Reader (Reader)
 
 foreign import getReaderImpl :: ReadableStream File -> Effect (Promise (Reader File))
 
