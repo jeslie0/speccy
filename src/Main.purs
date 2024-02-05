@@ -97,7 +97,7 @@ main = runInBody Deku.do
                 ]
                 [ DD.canvas
                     [ DA.id_ "canvas"
-                    , DA.style_ "width: 100%; height: 100%;"
+                    , DA.style_ "max-width: 50%; max-height: 100%; margin-left: auto; margin-right: auto; display: block;"
                     ]
                     []
                 ]

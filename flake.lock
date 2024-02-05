@@ -77,16 +77,17 @@
         "registry-index": "registry-index"
       },
       "locked": {
-        "dirtyRev": "744a6eb7a82e7f14ca779a63aec67545c04e4637-dirty",
-        "dirtyShortRev": "744a6eb-dirty",
-        "lastModified": 1705965943,
-        "narHash": "sha256-FoM0fWojOh34aea7I6szeJvoZjmRLQoGOu7AB0yWN1k=",
-        "type": "git",
-        "url": "file:///home/james/workspaces/PureScript/mkSpagoDerivation"
+        "lastModified": 1706974633,
+        "narHash": "sha256-pvI1P3s/uFsFLTwq0/vglf/wCAikIHZf9Ak/td7Hf5I=",
+        "owner": "jeslie0",
+        "repo": "mkSpagoDerivation",
+        "rev": "1294b2659017db566ca673dcf5833c9a8a3f9abe",
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "file:///home/james/workspaces/PureScript/mkSpagoDerivation"
+        "owner": "jeslie0",
+        "repo": "mkSpagoDerivation",
+        "type": "github"
       }
     },
     "nixpkgs": {
