@@ -85,7 +85,7 @@ main = runInBody Deku.do
             ]
         , DD.div
             [ klassList_ [ Tuple "pf-v5-c-card" true, Tuple "pf-m-full-height" true ]
-            , DA.style_ "height: 100%; width: 100%; position: relative;"
+            , DA.style_ "height: 100%; width: 100%; position: relative; overflow-y: auto;"
             ]
             [ DD.div
                 [ DA.klass_ "pf-v5-c-card__body"
@@ -105,6 +105,7 @@ main = runInBody Deku.do
     Tuple setDataType dataType <- DH.useState Uint8
     Tuple setAveragingFactor averagingFactor <- DH.useState 1
     Tuple setHeatmapType heatmapType <- DH.useState Viridis
+    Tuple setFile file <- DH.useState (Nothing :: Maybe File)
 
     let
       onMinus :: Poll (PointerEvent -> Effect Unit)
@@ -192,7 +193,10 @@ main = runInBody Deku.do
               ]
           , DD.div [ DA.klass_ "pf-v5-c-form_group-control" ]
               [ DD.input
-                  [ onFileUpload $ processFile <$> averagingFactor <*> dataType <*> heatmapType
+--processFile <$> averagingFactor <*> dataType <*> heatmapType
+                  [ onFileUpload <<< pure $ case _ of
+                       Just f -> setFile $ Just f
+                       Nothing -> pure unit
                   , DA.xtype_ "file"
                   ]
                   []
@@ -212,6 +216,15 @@ main = runInBody Deku.do
                   ]
               ]
           ]
+      , DD.div
+        [ DA.klass_ "pf-v5-c-form__group" ]
+        [ DD.button
+          [ klassList [ Tuple (pure "pf-v5-c-button") true, Tuple (pure "pf-m-primary") true ]
+          , DA.xtype_ "button"
+          , DL.click $ (\a d h f _ -> processFile a d h f) <$> averagingFactor <*> dataType <*> heatmapType <*> file
+          ]
+          [ DC.text_ "Go!"]
+        ]
       ]
 
 -- Spectrum time
@@ -237,7 +250,7 @@ processFile averagingValue dataType heatmapType mFile = do
     -- Get canvas data, configure its dimensions and get the
     -- underlying context.
     canvas <- MaybeT $ getCanvasElementById "canvas"
-    liftEffect $ setCanvasDimensions canvas { height: Int.toNumber <<< Int.floor $ pixelCount / (Int.toNumber averagingValue * 1024.0), width: 1024.0 }
+    liftEffect $ setCanvasDimensions canvas { height: min 32767.0 $ Int.toNumber <<< Int.floor $ pixelCount / (Int.toNumber averagingValue * 1024.0), width: 1024.0 }
     ctx <- liftEffect $ getContext2D canvas
 
     liftEffect <<< runAff_
@@ -307,12 +320,15 @@ runFileStream { done, value } = do
       state <- get
       numberArray <- liftEffect $ arrayBufferToEffArray state.dataType $ AB.buffer value
       newRow <- plotArray [] numberArray
-      modify_ $ _ {row = newRow}
-      liftEffect $ runAff_
-        ( case _ of
-            Left err -> liftEffect $ Console.logShow err
-            Right _ -> pure unit
-        ) $ read state.reader $ \a ->  evalStateT (runFileStream a) (state { row = newRow })
+      modify_ $ _ { row = newRow }
+      liftEffect
+        $ runAff_
+            ( case _ of
+                Left err -> liftEffect $ Console.logShow err
+                Right _ -> pure unit
+            )
+        $ read state.reader
+        $ \a -> evalStateT (runFileStream a) (state { row = newRow })
 
 log10 :: Number -> Number
 log10 x = (Number.log x) / Number.ln10
@@ -339,7 +355,7 @@ plotArray toPlot next = do
     modify_ $ \s -> s { row = s.row + 1 }
     plotArray before after
 
-plot1024Numbers :: forall r . { fft :: FFT, ctx :: Context2D, row :: Int, heatmapType :: HeatmapType | r } -> Array Number -> Effect Unit
+plot1024Numbers :: forall r. { fft :: FFT, ctx :: Context2D, row :: Int, heatmapType :: HeatmapType | r } -> Array Number -> Effect Unit
 plot1024Numbers { fft, ctx, row, heatmapType } arr =
   let
     fourieredArray =
@@ -404,23 +420,17 @@ onValueBlur pFunc =
         f val
 
 averageArray :: Array Number -> Int -> Int -> { before :: Array Number, after :: Array Number }
-averageArray nums 1 length = Array.splitAt length nums
 averageArray nums factor length =
-  if Array.length nums < length then { before: [], after: [] }
-  else
+  let
+    { before, after } = Array.splitAt length nums
+  in
+    go before after factor
+  where
+  go before after 1 =
+    { before: before <#> \k -> k / (Int.toNumber factor), after }
+  go bef aft n =
     let
-      indexFactors = (*) length <$> Array.range 0 (factor - 1) :: Array Int
-      { before, after } = Array.splitAt (factor * length) nums
-      averagedBefore =
-        unsafePartial $ ArrayST.run do
-          x <- newUnsafe length
-          for 0 length
-            ( \n -> ArrayST.poke n
-                ( (\k -> k / Int.toNumber factor)
-                    <<< sum $ (\m -> Array.unsafeIndex before $ n + m) <$> indexFactors
-                )
-                x
-            )
-          pure x
+      { before, after } = Array.splitAt length aft
+      newBefore = Array.zipWith (+) bef before
     in
-      { after, before: averagedBefore }
+      go newBefore after (n - 1)
