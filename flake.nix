@@ -35,7 +35,7 @@
           src =
             builtins.fetchTarball {
               url = "https://registry.npmjs.org/@patternfly/patternfly/-/patternfly-${version}.tgz";
-              sha256 = "sha256:1cdcd9z263wjvh9jadrry8b4zndc5m1vkxb4hz04xhj69fz9dyli";
+              sha256 = "sha256:001z9bmcz4qn87hswbvbjirpxrahycgj1kh55gs9i2ax2mjiv8mk";
             };
 
           installPhase =
